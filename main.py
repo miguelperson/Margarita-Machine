@@ -2,7 +2,7 @@ import asyncio
 import sys
 import threading
 
-from core.websocket_client import ESP32Client
+from core.websocket_client import ESP32Client # import esp32 client class
 from ui.main_window import MargaritaApp
 
 

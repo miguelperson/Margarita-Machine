@@ -40,4 +40,5 @@ class ESP32Client:
         print(f"Sent: {json_data}")
 
     async def send_pour(self, pump_id: int, ounces: float):
-        await self.send_command("pour", {"pump": pump_id, "oz": ounces})
+        # await self.send_command("pour", {"pump": pump_id, "oz": ounces}) # commented out for testing
+        print(f"Simulated pour command: pump_id={pump_id}, ounces={ounces}")
