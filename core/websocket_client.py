@@ -40,5 +40,10 @@ class ESP32Client:
         print(f"Sent: {json_data}")
 
     async def send_pour(self, pump_id: int, ounces: float):
-        # await self.send_command("pour", {"pump": pump_id, "oz": ounces}) # commented out for testing
-        print(f"Simulated pour command: pump_id={pump_id}, ounces={ounces}")
+        await self.send_command("pour", {"pump": pump_id, "oz": ounces})
+
+    async def send_serve(self, items: list):
+        """Send an aggregated serve command. `items` should be a list of dicts
+        with keys like `ingredient`, `pump`, and `oz`.
+        """
+        await self.send_command("serve", {"items": items})

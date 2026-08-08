@@ -1,12 +1,14 @@
 import asyncio
 import threading
 import customtkinter as ctk
+from .serving_dialog import ServingAmountDialog
 
 class MargaritaApp(ctk.CTk):
     def __init__(self, esp32_client):
         super().__init__()
         
         self.esp32_client = esp32_client
+        self.selections = []  # list of {'name', 'pump_id', 'amount'}
         # Start a dedicated asyncio event loop in a background thread
         self.loop = asyncio.new_event_loop()
         self._loop_thread = threading.Thread(target=self._run_loop, daemon=True)
@@ -40,6 +42,7 @@ class MargaritaApp(ctk.CTk):
         self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(1, weight=3)
         self.grid_rowconfigure(2, weight=1)
+        self.grid_rowconfigure(3, weight=1)
 
         for c in (0, 1):
             self.buttons_frame.grid_columnconfigure(c, weight=1)
@@ -48,12 +51,12 @@ class MargaritaApp(ctk.CTk):
 
         # Create six pour buttons and place in 2 columns x 3 rows
         labels = [
-            ("Pour Tequila\n(2.5 oz)", 1),
-            ("Pour Rum\n(2.5 oz)", 2),
-            ("Pour Vodka\n(2.5 oz)", 3),
-            ("Pour Whisky\n(2.5 oz)", 4),
-            ("Pour Soda\n(2.5 oz)", 5),
-            ("Pour Syrup\n(2.5 oz)", 6),
+            ("Pour Tequila", 1),
+            ("Pour Rum", 2),
+            ("Pour Vodka", 3),
+            ("Pour Whisky", 4),
+            ("Pour Soda", 5),
+            ("Pour Syrup", 6),
         ]
 
         self.pour_buttons = []
@@ -70,20 +73,41 @@ class MargaritaApp(ctk.CTk):
             btn.grid(row=r, column=c, sticky="nsew", padx=8, pady=8)
             self.pour_buttons.append(btn)
 
-        # Status Display Box (row 2)
+        # Control frame: selections and serve button (row 2)
+        self.control_frame = ctk.CTkFrame(self)
+        self.control_frame.grid(row=2, column=0, columnspan=2, sticky="nsew", padx=8, pady=4)
+
+        # Selections tappable list (scrollable)
+        self.selection_frame = ctk.CTkScrollableFrame(self.control_frame, height=160)
+        self.selection_frame.grid(row=0, column=0, columnspan=3, sticky="nsew", padx=8, pady=8)
+        self.control_frame.grid_columnconfigure(0, weight=1)
+        self.selection_frame.grid_columnconfigure(0, weight=1)
+
+        # initial empty state
+        self.empty_label = ctk.CTkLabel(self.selection_frame, text="No selections yet.")
+        self.empty_label.grid(row=0, column=0, padx=8, pady=8)
+
+        # Serve button aligned on the right
+        self.serve_btn = ctk.CTkButton(self.control_frame, text="Serve", fg_color="#1f6feb", command=self.serve_all, width=160, height=64, font=("Arial", 18))
+        self.serve_btn.grid(row=1, column=2, sticky="e", padx=8, pady=8)
+
+        # Status Display Box (row 3)
         self.status_box = ctk.CTkTextbox(self, font=("Consolas", 14))
-        self.status_box.grid(row=2, column=0, columnspan=2, sticky="nsew", padx=8, pady=8)
+        self.status_box.grid(row=3, column=0, columnspan=2, sticky="nsew", padx=8, pady=8)
         self.status_box.insert("0.0", "System Initialized. Waiting for connection...\n")
 
     def on_pour_clicked(self, pump_id: int):
-        """Triggered when a pour button is pressed."""
-        self.log_message(f"Requesting pour: Pump {pump_id} (2.5 oz)...")
-        
-        # Run the async send method safely from the synchronous UI button callback
-        asyncio.run_coroutine_threadsafe(
-            self.esp32_client.send_pour(pump_id=pump_id, ounces=2.5),
-            self.loop
-        )
+        """Open the serving-size dialog and add the selection to the list."""
+        # Map pump id to friendly name
+        pump_names = {1: "Tequila", 2: "Rum", 3: "Vodka", 4: "Whisky", 5: "Soda", 6: "Syrup"}
+        name = pump_names.get(pump_id, f"Pump {pump_id}")
+
+        dlg = ServingAmountDialog(self, title=name, default=1.5)
+        self.wait_window(dlg)
+        if getattr(dlg, "result", None):
+            amount = dlg.result
+            self.add_selection(name=name, pump_id=pump_id, amount=amount)
+            self.log_message(f"Queued: {name} — {amount:.1f} oz")
 
     def _run_loop(self):
         """Thread target: set and run the background asyncio loop."""
@@ -107,3 +131,86 @@ class MargaritaApp(ctk.CTk):
     def log_message(self, message):
         self.status_box.insert("end", f"{message}\n")
         self.status_box.see("end")
+
+    def add_selection(self, name: str, pump_id: int, amount: float):
+        self.selections.append({"name": name, "pump_id": pump_id, "amount": amount})
+        self.update_selection_display()
+
+    def update_selection_display(self):
+        # Clear previous widgets
+        for w in self.selection_frame.winfo_children():
+            w.destroy()
+
+        if not self.selections:
+            self.empty_label = ctk.CTkLabel(self.selection_frame, text="No selections yet.")
+            self.empty_label.grid(row=0, column=0, padx=8, pady=8)
+            return
+
+        for idx, s in enumerate(self.selections):
+            row_frame = ctk.CTkFrame(self.selection_frame)
+            row_frame.grid(row=idx, column=0, sticky="ew", padx=6, pady=6)
+            row_frame.grid_columnconfigure(0, weight=1)
+
+            lbl = ctk.CTkLabel(row_frame, text=f"{s['name']} — {s['amount']:.1f} oz", anchor="w", font=("Arial", 16))
+            lbl.grid(row=0, column=0, sticky="w", padx=(8, 4))
+
+            edit_btn = ctk.CTkButton(row_frame, text="Edit", width=80, height=36, command=lambda i=idx: self.edit_selection(i))
+            edit_btn.grid(row=0, column=1, padx=4, pady=4)
+
+            del_btn = ctk.CTkButton(row_frame, text="Delete", fg_color="#c0392b", width=80, height=36, command=lambda i=idx: self.delete_selection(i))
+            del_btn.grid(row=0, column=2, padx=4, pady=4)
+
+    def remove_last_selection(self):
+        # Deprecated: use per-item delete buttons instead
+        if not self.selections:
+            return
+        last = self.selections.pop()
+        self.update_selection_display()
+        self.log_message(f"Removed selection: {last['name']} {last['amount']:.1f} oz")
+
+    def edit_last_selection(self):
+        # Deprecated: use per-item edit buttons instead
+        if not self.selections:
+            return
+        last = self.selections[-1]
+        dlg = ServingAmountDialog(self, title=last['name'], default=last['amount'])
+        self.wait_window(dlg)
+        if getattr(dlg, "result", None):
+            last['amount'] = dlg.result
+            self.update_selection_display()
+            self.log_message(f"Updated selection: {last['name']} — {last['amount']:.1f} oz")
+
+    def edit_selection(self, index: int):
+        if index < 0 or index >= len(self.selections):
+            return
+        item = self.selections[index]
+        dlg = ServingAmountDialog(self, title=item['name'], default=item['amount'])
+        self.wait_window(dlg)
+        if getattr(dlg, "result", None):
+            item['amount'] = dlg.result
+            self.update_selection_display()
+            self.log_message(f"Updated selection: {item['name']} — {item['amount']:.1f} oz")
+
+    def delete_selection(self, index: int):
+        if index < 0 or index >= len(self.selections):
+            return
+        item = self.selections.pop(index)
+        self.update_selection_display()
+        self.log_message(f"Deleted selection: {item['name']} — {item['amount']:.1f} oz")
+
+    def serve_all(self):
+        if not self.selections:
+            self.log_message("No selections to serve.")
+            return
+        payload = []
+        for s in self.selections:
+            payload.append({"ingredient": s['name'], "pump": s['pump_id'], "oz": s['amount']})
+
+        # Send as an aggregated serve command over websocket
+        asyncio.run_coroutine_threadsafe(
+            self.esp32_client.send_serve(payload),
+            self.loop
+        )
+        self.log_message(f"Sent serve command with {len(self.selections)} items.")
+        self.selections = []
+        self.update_selection_display()
