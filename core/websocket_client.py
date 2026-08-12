@@ -3,6 +3,7 @@ import json
 import os
 import subprocess
 import tempfile
+import time
 
 import websockets
 
@@ -21,16 +22,28 @@ class ESP32Client:
         self.is_connected = False
         self.on_telemetry_received = None
 
+    def _is_wifi_connected(self) -> bool:
+        result = subprocess.run(
+            ["netsh", "wlan", "show", "interfaces"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        return result.returncode == 0 and self.ssid.lower() in result.stdout.lower()
+
+    def _wait_for_wifi_connection(self, timeout: int = 20, interval: int = 2) -> bool:
+        elapsed = 0
+        while elapsed < timeout:
+            if self._is_wifi_connected():
+                return True
+            time.sleep(interval)
+            elapsed += interval
+        return False
+
     def ensure_wifi_connected(self):
         """Connect the Windows PC to the ESP32's Wi-Fi access point if needed."""
         try:
-            result = subprocess.run(
-                ["netsh", "wlan", "show", "interfaces"],
-                capture_output=True,
-                text=True,
-                check=False,
-            )
-            if result.returncode == 0 and self.ssid.lower() in result.stdout.lower():
+            if self._is_wifi_connected():
                 print(f"Wi-Fi already connected to {self.ssid}.")
                 return
 
@@ -84,7 +97,7 @@ class ESP32Client:
                 text=True,
                 check=False,
             )
-            if connect_result.returncode == 0:
+            if connect_result.returncode == 0 and self._wait_for_wifi_connection():
                 print(f"Connected to Wi-Fi SSID: {self.ssid}")
             else:
                 print(f"Failed to connect to Wi-Fi SSID: {self.ssid}")
@@ -98,6 +111,10 @@ class ESP32Client:
 
         while True:
             try:
+                if not self._is_wifi_connected():
+                    print("ESP32 Wi-Fi is not currently connected. Reconnecting Wi-Fi before websocket attempt.")
+                    self.ensure_wifi_connected()
+
                 print(f"Connecting to ESP32 at {self.uri}...")
                 async with websockets.connect(self.uri) as websocket:
                     self.websocket = websocket
@@ -108,9 +125,13 @@ class ESP32Client:
                         if self.on_telemetry_received:
                             data = json.loads(message)
                             self.on_telemetry_received(data)
-            except (websockets.ConnectionClosed, ConnectionRefusedError):
+            except (websockets.ConnectionClosed, ConnectionRefusedError, OSError) as exc:
                 self.is_connected = False
-                print("Connection lost. Reconnecting in 2 seconds...")
+                print(f"Connection failed: {exc}. Reconnecting in 2 seconds...")
+                await asyncio.sleep(2)
+            except Exception as exc:
+                self.is_connected = False
+                print(f"Unexpected websocket error: {exc}. Reconnecting in 2 seconds...")
                 await asyncio.sleep(2)
 
     async def send_command(self, action: str, payload: dict):
