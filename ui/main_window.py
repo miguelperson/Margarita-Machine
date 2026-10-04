@@ -4,6 +4,17 @@ import customtkinter as ctk
 from .serving_dialog import ServingAmountDialog
 
 class MargaritaApp(ctk.CTk):
+    MAX_DRINK_OUNCES = 16.0
+
+    @staticmethod
+    def get_total_selected_oz(selections):
+        return sum(float(item.get("amount", 0) or 0) for item in selections)
+
+    @classmethod
+    def has_overflow(cls, selections, limit=None):
+        limit = cls.MAX_DRINK_OUNCES if limit is None else float(limit)
+        return cls.get_total_selected_oz(selections) > limit
+
     def __init__(self, esp32_client):
         super().__init__()
         
@@ -106,8 +117,8 @@ class MargaritaApp(ctk.CTk):
         self.wait_window(dlg)
         if getattr(dlg, "result", None):
             amount = dlg.result
-            self.add_selection(name=name, pump_id=pump_id, amount=amount)
-            self.log_message(f"Queued: {name} — {amount:.1f} oz")
+            if self.add_selection(name=name, pump_id=pump_id, amount=amount):
+                self.log_message(f"Queued: {name} — {amount:.1f} oz")
 
     def _run_loop(self):
         """Thread target: set and run the background asyncio loop."""
@@ -133,8 +144,19 @@ class MargaritaApp(ctk.CTk):
         self.status_box.see("end")
 
     def add_selection(self, name: str, pump_id: int, amount: float):
+        amount = float(amount)
+        trial_selections = [dict(item) for item in self.selections] + [{"name": name, "pump_id": pump_id, "amount": amount}]
+        if self.has_overflow(trial_selections, self.MAX_DRINK_OUNCES):
+            total = self.get_total_selected_oz(self.selections) + amount
+            self.log_message(
+                f"Drink overflow: {total:.1f} oz exceeds the 16 oz limit. "
+                "Please reduce the amount before serving."
+            )
+            return False
+
         self.selections.append({"name": name, "pump_id": pump_id, "amount": amount})
         self.update_selection_display()
+        return True
 
     def update_selection_display(self):
         # Clear previous widgets
@@ -176,6 +198,15 @@ class MargaritaApp(ctk.CTk):
         dlg = ServingAmountDialog(self, title=last['name'], default=last['amount'])
         self.wait_window(dlg)
         if getattr(dlg, "result", None):
+            updated_selection = [dict(s) for s in self.selections]
+            updated_selection[-1]["amount"] = dlg.result
+            if self.has_overflow(updated_selection, self.MAX_DRINK_OUNCES):
+                self.log_message(
+                    f"Drink overflow: {self.get_total_selected_oz(updated_selection):.1f} oz exceeds the 16 oz limit. "
+                    "Please reduce the amount before serving."
+                )
+                return
+
             last['amount'] = dlg.result
             self.update_selection_display()
             self.log_message(f"Updated selection: {last['name']} — {last['amount']:.1f} oz")
@@ -187,6 +218,15 @@ class MargaritaApp(ctk.CTk):
         dlg = ServingAmountDialog(self, title=item['name'], default=item['amount'])
         self.wait_window(dlg)
         if getattr(dlg, "result", None):
+            updated_selection = [dict(s) for s in self.selections]
+            updated_selection[index]["amount"] = dlg.result
+            if self.has_overflow(updated_selection, self.MAX_DRINK_OUNCES):
+                self.log_message(
+                    f"Drink overflow: {self.get_total_selected_oz(updated_selection):.1f} oz exceeds the 16 oz limit. "
+                    "Please reduce the amount before serving."
+                )
+                return
+
             item['amount'] = dlg.result
             self.update_selection_display()
             self.log_message(f"Updated selection: {item['name']} — {item['amount']:.1f} oz")
@@ -202,6 +242,14 @@ class MargaritaApp(ctk.CTk):
         if not self.selections:
             self.log_message("No selections to serve.")
             return
+
+        total_oz = self.get_total_selected_oz(self.selections)
+        if total_oz > self.MAX_DRINK_OUNCES:
+            self.log_message(
+                f"Cannot serve drink: total is {total_oz:.1f} oz, which exceeds the 16 oz limit."
+            )
+            return
+
         payload = []
         for s in self.selections:
             payload.append({"ingredient": s['name'], "pump": s['pump_id'], "oz": s['amount']})

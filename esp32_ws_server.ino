@@ -18,8 +18,33 @@
 
 const char *AP_SSID = "MargaritaMachine";
 const char *AP_PASSWORD = "12345678"; // Optional; can be left empty for open AP
+const float MAX_DRINK_OUNCES = 16.0f;
 
 WebSocketsServer webSocket = WebSocketsServer(80);
+
+float totalOuncesInServePayload(const JsonDocument &doc) {
+  float total_oz = 0.0f;
+
+  if (!doc.containsKey("action") || strcmp(doc["action"], "serve") != 0) {
+    return total_oz;
+  }
+
+  if (!doc.containsKey("items") || !doc["items"].is<JsonArray>()) {
+    return total_oz;
+  }
+
+  for (JsonVariant item : doc["items"].as<JsonArray>()) {
+    if (!item.containsKey("oz")) {
+      continue;
+    }
+
+    if (item["oz"].is<float>() || item["oz"].is<int>()) {
+      total_oz += item["oz"].as<float>();
+    }
+  }
+
+  return total_oz;
+}
 
 void printClientIP(IPAddress ip) {
   Serial.print("Client connected from: ");
@@ -50,10 +75,21 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t length)
       if (err) {
         Serial.print("[JSON] Failed to parse message: ");
         Serial.println(err.c_str());
-      } else {
-        Serial.println("[JSON] Parsed payload:");
-        serializeJsonPretty(doc, Serial);
-        Serial.println();
+        break;
+      }
+
+      Serial.println("[JSON] Parsed payload:");
+      serializeJsonPretty(doc, Serial);
+      Serial.println();
+
+      if (strcmp(doc["action"] | "", "serve") == 0) {
+        float total_oz = totalOuncesInServePayload(doc);
+
+        if (total_oz > MAX_DRINK_OUNCES) {
+          Serial.printf("[SAFE] Rejected oversized serve command: %.1f oz exceeds %0.1f oz limit\n", total_oz, MAX_DRINK_OUNCES);
+          webSocket.sendTXT(num, "{\"status\":\"error\",\"reason\":\"drink_overflow\"}");
+          break;
+        }
       }
 
       // Optional: send a simple acknowledgment back to the sender.

@@ -9,6 +9,17 @@ import websockets
 
 
 class ESP32Client:
+    MAX_SERVE_OUNCES = 16.0
+
+    @staticmethod
+    def get_total_ounces(items: list) -> float:
+        return sum(float(item.get("oz", 0) or 0) for item in items)
+
+    @classmethod
+    def has_overflow(cls, items: list, limit: float | None = None) -> bool:
+        limit = cls.MAX_SERVE_OUNCES if limit is None else float(limit)
+        return cls.get_total_ounces(items) > limit
+
     def __init__(
         self,
         uri="ws://192.168.4.1/ws",
@@ -151,4 +162,12 @@ class ESP32Client:
         """Send an aggregated serve command. `items` should be a list of dicts
         with keys like `ingredient`, `pump`, and `oz`.
         """
+        total_oz = self.get_total_ounces(items)
+        if total_oz > self.MAX_SERVE_OUNCES:
+            print(
+                f"Error: drink total is {total_oz:.1f} oz; refusing to send to ESP32 "
+                f"because the maximum is {self.MAX_SERVE_OUNCES:.0f} oz."
+            )
+            return
+
         await self.send_command("serve", {"items": items})

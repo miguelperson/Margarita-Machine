@@ -12,6 +12,15 @@ class ImportTests(unittest.TestCase):
 
         self.assertTrue(callable(main.main))
 
+    def test_drink_oz_limit_checker(self):
+        from ui.main_window import MargaritaApp
+
+        selections = [{"amount": 8.0}, {"amount": 8.5}]
+        self.assertEqual(MargaritaApp.get_total_selected_oz(selections), 16.5)
+        self.assertTrue(MargaritaApp.has_overflow(selections, 16.0))
+
+        self.assertFalse(MargaritaApp.has_overflow([{"amount": 8.0}, {"amount": 8.0}], 16.0))
+
 
 if __name__ == "__main__":
     unittest.main()
