@@ -107,7 +107,7 @@ String buildLandingPage() {
         grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
         gap: 12px;
       }
-      .drink-btn, .queue-btn {
+      .drink-btn, .queue-btn, .custom-btn, .builder-btn, .delete-btn {
         border: none;
         border-radius: 12px;
         padding: 16px 12px;
@@ -117,42 +117,84 @@ String buildLandingPage() {
         color: var(--text);
         cursor: pointer;
       }
-      .drink-btn:hover, .queue-btn:hover { filter: brightness(1.08); }
-      .custom-form {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 12px;
-        margin-top: 12px;
+      .builder-btn {
+        padding: 12px 10px;
+        background: rgba(245, 158, 11, 0.2);
       }
-      .custom-form input, .custom-form button {
+      .delete-btn {
+        background: rgba(239, 68, 68, 0.15);
+        color: var(--text);
+        padding: 10px 12px;
+        margin-left: 8px;
+      }
+      .custom-btn {
         width: 100%;
-        padding: 12px;
-        border: 1px solid rgba(255,255,255,0.1);
-        border-radius: 10px;
-        font-size: 1rem;
-      }
-      .custom-form button {
         background: var(--accent);
         color: #111827;
-        font-weight: bold;
-        border: none;
-        cursor: pointer;
+      }
+      .drink-btn:hover, .queue-btn:hover, .custom-btn:hover, .builder-btn:hover, .delete-btn:hover { filter: brightness(1.08); }
+      .custom-builder {
+        display: grid;
+        gap: 12px;
+      }
+      .builder-row {
+        display: grid;
+        grid-template-columns: minmax(140px, 1.3fr) minmax(90px, 0.6fr) auto;
+        gap: 10px;
+        align-items: end;
+      }
+      .field {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .field label {
+        font-size: 0.8rem;
+        color: var(--muted);
+      }
+      select, input {
+        width: 100%;
+        padding: 10px 12px;
+        border-radius: 10px;
+        border: 1px solid rgba(255,255,255,0.08);
+        background: rgba(17, 24, 39, 0.6);
+        color: var(--text);
+        font-size: 1rem;
       }
       .queue-item {
         display: flex;
         justify-content: space-between;
-        align-items: center;
+        align-items: flex-start;
+        gap: 12px;
         background: rgba(255,255,255,0.03);
         border-radius: 12px;
         padding: 12px 14px;
         margin-top: 10px;
       }
-      .queue-meta { display: flex; flex-direction: column; gap: 4px; }
+      .queue-meta {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        flex: 1;
+      }
+      .ingredient-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      .ingredient-pill {
+        display: inline-block;
+        padding: 4px 8px;
+        border-radius: 999px;
+        background: rgba(245, 158, 11, 0.2);
+        color: var(--text);
+        font-size: 0.8rem;
+      }
       .small { color: var(--muted); font-size: 0.9rem; }
       .status { color: var(--success); font-weight: bold; }
       .danger { color: var(--danger); }
       @media (max-width: 560px) {
-        .custom-form { grid-template-columns: 1fr; }
+        .builder-row { grid-template-columns: 1fr; }
       }
     </style>
   </head>
@@ -175,11 +217,63 @@ String buildLandingPage() {
 
       <div class="panel">
         <h2>Custom Drink</h2>
-        <form id="custom-form" class="custom-form">
-          <input id="drink-name" type="text" placeholder="Drink name" maxlength="48" />
-          <input id="drink-oz" type="number" step="0.5" min="0.5" max="8" value="4" />
-          <button type="submit">Add to Queue</button>
-        </form>
+        <div class="custom-builder">
+          <div class="builder-row">
+            <div class="field">
+              <label for="liquor-select">Liquor</label>
+              <select id="liquor-select">
+                <option value="Tequila">Tequila</option>
+                <option value="Rum">Rum</option>
+                <option value="Whisky">Whisky</option>
+                <option value="Vodka">Vodka</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="liquor-oz">Ounces</label>
+              <select id="liquor-oz">
+                <option value="0.5">0.5</option>
+                <option value="1.0">1.0</option>
+                <option value="1.5" selected>1.5</option>
+                <option value="2.0">2.0</option>
+                <option value="2.5">2.5</option>
+                <option value="3.0">3.0</option>
+                <option value="3.5">3.5</option>
+                <option value="4.0">4.0</option>
+              </select>
+            </div>
+            <button id="add-liquor-btn" class="builder-btn" type="button">Add liquor</button>
+          </div>
+
+          <div class="builder-row">
+            <div class="field">
+              <label for="mixer-select">Mixer</label>
+              <select id="mixer-select">
+                <option value="Club soda">Club soda</option>
+                <option value="Coke">Coke</option>
+                <option value="Cranberry juice">Cranberry juice</option>
+                <option value="Orange juice">Orange juice</option>
+                <option value="Angry Orchard">Angry Orchard</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="mixer-oz">Ounces</label>
+              <select id="mixer-oz">
+                <option value="0.5">0.5</option>
+                <option value="1.0">1.0</option>
+                <option value="1.5">1.5</option>
+                <option value="2.0" selected>2.0</option>
+                <option value="2.5">2.5</option>
+                <option value="3.0">3.0</option>
+                <option value="3.5">3.5</option>
+                <option value="4.0">4.0</option>
+              </select>
+            </div>
+            <button id="add-mixer-btn" class="builder-btn" type="button">Add mixer</button>
+          </div>
+
+          <div id="custom-ingredient-list" class="ingredient-list"></div>
+          <button id="queue-custom-drink-btn" class="custom-btn" type="button">Add custom drink to queue</button>
+        </div>
       </div>
 
       <div class="panel">
@@ -191,6 +285,41 @@ String buildLandingPage() {
     <script>
       const MAX_OUNCES = 8.0;
       let queue = [];
+      let customDrinkNumber = 1;
+      let customDraftItems = [];
+
+      function renderCustomDraft() {
+        const listEl = document.getElementById('custom-ingredient-list');
+        if (!customDraftItems.length) {
+          listEl.innerHTML = '<div class="small">No ingredients selected yet.</div>';
+          return;
+        }
+
+        listEl.innerHTML = customDraftItems
+          .map((item) => `<span class="ingredient-pill">${item.name} · ${Number(item.oz).toFixed(1)} oz</span>`)
+          .join('');
+      }
+
+      function parseIngredients(item) {
+        if (!item || !item.payload) {
+          return [{ name: item && item.name ? item.name : 'Custom blend', oz: Number(item && item.totalOz ? item.totalOz : 0) }];
+        }
+
+        try {
+          const payload = JSON.parse(item.payload);
+          const items = Array.isArray(payload.items) ? payload.items : [];
+          if (items.length) {
+            return items.map((entry) => ({
+              name: entry.name || 'Ingredient',
+              oz: Number(entry.oz) || 0
+            })).filter((entry) => entry.oz > 0);
+          }
+        } catch (error) {
+          // Fall back to a single label if the payload is not JSON.
+        }
+
+        return [{ name: item.name || 'Custom blend', oz: Number(item.totalOz) || 0 }];
+      }
 
       function updateQueueDisplay() {
         const queueEl = document.getElementById('queue');
@@ -199,15 +328,26 @@ String buildLandingPage() {
           return;
         }
 
-        queueEl.innerHTML = queue.map(item => `
-          <div class="queue-item">
-            <div class="queue-meta">
-              <strong>${item.name}</strong>
-              <span class="small">${item.totalOz.toFixed(1)} oz</span>
+        queueEl.innerHTML = queue.map((item) => {
+          const ingredients = parseIngredients(item);
+          const ingredientMarkup = ingredients.map((entry) => `
+            <span class="ingredient-pill">${entry.name} · ${Number(entry.oz).toFixed(1)} oz</span>
+          `).join('');
+
+          return `
+            <div class="queue-item">
+              <div class="queue-meta">
+                <strong>${item.name}</strong>
+                <div class="ingredient-list">${ingredientMarkup}</div>
+                <span class="small">${item.totalOz.toFixed(1)} oz total</span>
+              </div>
+              <div>
+                <button class="queue-btn" data-id="${item.id}">Dispense</button>
+                <button class="delete-btn" data-id="${item.id}">Delete</button>
+              </div>
             </div>
-            <button class="queue-btn" data-id="${item.id}">Dispense</button>
-          </div>
-        `).join('');
+          `;
+        }).join('');
       }
 
       function apiFetch(path, options = {}) {
@@ -225,11 +365,31 @@ String buildLandingPage() {
       }
 
       async function refreshQueue() {
-        const payload = await apiFetch('/api/status');
-        if (payload && payload.queue) {
-          queue = payload.queue;
-          updateQueueDisplay();
+        try {
+          const payload = await apiFetch('/api/status');
+          if (payload && payload.queue) {
+            queue = payload.queue;
+            updateQueueDisplay();
+            return;
+          }
+        } catch (error) {
+          // If the ESP32 endpoint is unavailable, leave the queue as-is.
         }
+      }
+
+      function addCustomIngredient(type, selectId, ounceId) {
+        const ingredientName = document.getElementById(selectId).value;
+        const ounceValue = Number(document.getElementById(ounceId).value);
+
+        if (!ingredientName || !Number.isFinite(ounceValue) || ounceValue <= 0) {
+          alert('Pick an ingredient and set a valid ounce amount.');
+          return;
+        }
+
+        customDraftItems.push({ name: ingredientName, oz: ounceValue, type });
+        renderCustomDraft();
+        document.getElementById(selectId).selectedIndex = 0;
+        document.getElementById(ounceId).value = type === 'liquor' ? '1.5' : '2.0';
       }
 
       document.querySelectorAll('.drink-btn').forEach((button) => {
@@ -252,27 +412,34 @@ String buildLandingPage() {
         });
       });
 
-      document.getElementById('custom-form').addEventListener('submit', async (event) => {
-        event.preventDefault();
-        const name = document.getElementById('drink-name').value.trim() || 'Custom Drink';
-        const oz = Number(document.getElementById('drink-oz').value);
+      document.getElementById('add-liquor-btn').addEventListener('click', () => {
+        addCustomIngredient('liquor', 'liquor-select', 'liquor-oz');
+      });
 
-        if (!Number.isFinite(oz) || oz <= 0 || oz > MAX_OUNCES) {
-          alert('Custom drink must be between 0.5 and 8.0 oz.');
+      document.getElementById('add-mixer-btn').addEventListener('click', () => {
+        addCustomIngredient('mixer', 'mixer-select', 'mixer-oz');
+      });
+
+      document.getElementById('queue-custom-drink-btn').addEventListener('click', async () => {
+        if (!customDraftItems.length) {
+          alert('Add at least one liquor or mixer before sending the custom drink to the queue.');
           return;
         }
+
+        const name = `Custom drink #${customDrinkNumber}`;
+        customDrinkNumber += 1;
 
         const result = await apiFetch('/api/add', {
           method: 'POST',
           body: JSON.stringify({
             name,
-            items: [{ name, oz }]
+            items: customDraftItems.map(({ name, oz }) => ({ name, oz }))
           })
         });
 
         if (result.status === 'ok') {
-          document.getElementById('custom-form').reset();
-          document.getElementById('drink-oz').value = '4';
+          customDraftItems = [];
+          renderCustomDraft();
           await refreshQueue();
         } else {
           alert(result.reason || 'Unable to add the custom drink.');
@@ -280,6 +447,21 @@ String buildLandingPage() {
       });
 
       document.addEventListener('click', async (event) => {
+        const deleteButton = event.target.closest('.delete-btn');
+        if (deleteButton) {
+          const result = await apiFetch('/api/remove', {
+            method: 'POST',
+            body: JSON.stringify({ id: deleteButton.dataset.id })
+          });
+
+          if (result.status === 'ok') {
+            await refreshQueue();
+          } else {
+            alert(result.reason || 'Unable to delete this item from the queue.');
+          }
+          return;
+        }
+
         const button = event.target.closest('.queue-btn');
         if (!button) return;
 
@@ -295,6 +477,7 @@ String buildLandingPage() {
         }
       });
 
+      renderCustomDraft();
       refreshQueue();
     </script>
   </body>
@@ -379,6 +562,40 @@ void handleAddDrink() {
   server.send(200, "application/json", "{\"status\":\"ok\",\"queued\":true}");
 }
 
+void handleRemoveDrink() {
+  if (server.method() != HTTP_POST) {
+    server.send(405, "application/json", "{\"status\":\"error\",\"reason\":\"method_not_allowed\"}");
+    return;
+  }
+
+  if (!server.hasArg("plain")) {
+    server.send(400, "application/json", "{\"status\":\"error\",\"reason\":\"missing_body\"}");
+    return;
+  }
+
+  String body = server.arg("plain");
+  DynamicJsonDocument doc(2048);
+  DeserializationError error = deserializeJson(doc, body);
+
+  if (error) {
+    server.send(400, "application/json", "{\"status\":\"error\",\"reason\":\"invalid_json\"}");
+    return;
+  }
+
+  String targetId = doc["id"] | "";
+  if (targetId.length() == 0 || !queueHasItemWithId(targetId)) {
+    server.send(404, "application/json", "{\"status\":\"error\",\"reason\":\"item_not_found\"}");
+    return;
+  }
+
+  queueItems.erase(std::remove_if(queueItems.begin(), queueItems.end(),
+                                  [&](const QueueItem &queuedItem) {
+                                    return queuedItem.id == targetId;
+                                  }), queueItems.end());
+
+  server.send(200, "application/json", "{\"status\":\"ok\",\"removed\":true}");
+}
+
 void handleDispense() {
   if (server.method() != HTTP_POST) {
     server.send(405, "application/json", "{\"status\":\"error\",\"reason\":\"method_not_allowed\"}");
@@ -455,6 +672,7 @@ void setup() {
   server.on("/", HTTP_GET, handleRoot);
   server.on("/api/status", HTTP_GET, handleStatus);
   server.on("/api/add", HTTP_POST, handleAddDrink);
+  server.on("/api/remove", HTTP_POST, handleRemoveDrink);
   server.on("/api/dispense", HTTP_POST, handleDispense);
 
   server.begin();
