@@ -1,13 +1,19 @@
 #include <WiFi.h>
 #include <WebServer.h>
+#include <DNSServer.h>
+#include <ESPmDNS.h>
 #include <ArduinoJson.h>
 #include <vector>
 #include <algorithm>
+#include "landing_page.h"
 
 const char *AP_SSID = "MargaritaMachine";
 const float MAX_DRINK_OUNCES = 8.0f;
 
 WebServer server(80);
+DNSServer dnsServer;
+
+const byte DNS_PORT = 53;
 
 struct QueueItem {
   String id;
@@ -62,248 +68,6 @@ String buildQueueStatusJson() {
   return response;
 }
 
-String buildLandingPage() {
-  String page = R"HTML(
-<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Margarita Machine</title>
-    <style>
-      :root {
-        --bg: #111827;
-        --panel: #1f2937;
-        --panel-alt: #374151;
-        --accent: #f59e0b;
-        --text: #f9fafb;
-        --muted: #d1d5db;
-        --danger: #ef4444;
-        --success: #22c55e;
-      }
-
-      * { box-sizing: border-box; }
-      body {
-        margin: 0;
-        font-family: Arial, sans-serif;
-        background: var(--bg);
-        color: var(--text);
-      }
-      .app {
-        max-width: 760px;
-        margin: 0 auto;
-        padding: 24px 16px 48px;
-      }
-      .panel {
-        background: var(--panel);
-        border-radius: 16px;
-        padding: 20px;
-        margin-bottom: 18px;
-        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
-      }
-      h1, h2, h3 { margin-top: 0; }
-      .drink-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-        gap: 12px;
-      }
-      .drink-btn, .queue-btn {
-        border: none;
-        border-radius: 12px;
-        padding: 16px 12px;
-        font-size: 1rem;
-        font-weight: bold;
-        background: var(--panel-alt);
-        color: var(--text);
-        cursor: pointer;
-      }
-      .drink-btn:hover, .queue-btn:hover { filter: brightness(1.08); }
-      .custom-form {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 12px;
-        margin-top: 12px;
-      }
-      .custom-form input, .custom-form button {
-        width: 100%;
-        padding: 12px;
-        border: 1px solid rgba(255,255,255,0.1);
-        border-radius: 10px;
-        font-size: 1rem;
-      }
-      .custom-form button {
-        background: var(--accent);
-        color: #111827;
-        font-weight: bold;
-        border: none;
-        cursor: pointer;
-      }
-      .queue-item {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        background: rgba(255,255,255,0.03);
-        border-radius: 12px;
-        padding: 12px 14px;
-        margin-top: 10px;
-      }
-      .queue-meta { display: flex; flex-direction: column; gap: 4px; }
-      .small { color: var(--muted); font-size: 0.9rem; }
-      .status { color: var(--success); font-weight: bold; }
-      .danger { color: var(--danger); }
-      @media (max-width: 560px) {
-        .custom-form { grid-template-columns: 1fr; }
-      }
-    </style>
-  </head>
-  <body>
-    <div class="app">
-      <div class="panel">
-        <h1>Margarita Machine</h1>
-        <p class="small">Open Wi-Fi access point. Queue drinks, then dispense one at a time.</p>
-      </div>
-
-      <div class="panel">
-        <h2>Preset Drinks</h2>
-        <div class="drink-grid">
-          <button class="drink-btn" data-preset="Classic Margarita" data-oz="4">Classic Margarita</button>
-          <button class="drink-btn" data-preset="Tequila Sunrise" data-oz="5">Tequila Sunrise</button>
-          <button class="drink-btn" data-preset="Lime Cooler" data-oz="6">Lime Cooler</button>
-          <button class="drink-btn" data-preset="Frozen Punch" data-oz="7.5">Frozen Punch</button>
-        </div>
-      </div>
-
-      <div class="panel">
-        <h2>Custom Drink</h2>
-        <form id="custom-form" class="custom-form">
-          <input id="drink-name" type="text" placeholder="Drink name" maxlength="48" />
-          <input id="drink-oz" type="number" step="0.5" min="0.5" max="8" value="4" />
-          <button type="submit">Add to Queue</button>
-        </form>
-      </div>
-
-      <div class="panel">
-        <h2>Queue</h2>
-        <div id="queue"></div>
-      </div>
-    </div>
-
-    <script>
-      const MAX_OUNCES = 8.0;
-      let queue = [];
-
-      function updateQueueDisplay() {
-        const queueEl = document.getElementById('queue');
-        if (!queue.length) {
-          queueEl.innerHTML = '<div class="small">No drinks in the queue.</div>';
-          return;
-        }
-
-        queueEl.innerHTML = queue.map(item => `
-          <div class="queue-item">
-            <div class="queue-meta">
-              <strong>${item.name}</strong>
-              <span class="small">${item.totalOz.toFixed(1)} oz</span>
-            </div>
-            <button class="queue-btn" data-id="${item.id}">Dispense</button>
-          </div>
-        `).join('');
-      }
-
-      function apiFetch(path, options = {}) {
-        return fetch(path, {
-          headers: { 'Content-Type': 'application/json' },
-          ...options
-        }).then(async (response) => {
-          const text = await response.text();
-          try {
-            return JSON.parse(text);
-          } catch (error) {
-            return { status: 'error', raw: text };
-          }
-        });
-      }
-
-      async function refreshQueue() {
-        const payload = await apiFetch('/api/status');
-        if (payload && payload.queue) {
-          queue = payload.queue;
-          updateQueueDisplay();
-        }
-      }
-
-      document.querySelectorAll('.drink-btn').forEach((button) => {
-        button.addEventListener('click', async () => {
-          const payload = {
-            name: button.dataset.preset,
-            items: [{ name: button.dataset.preset, oz: Number(button.dataset.oz) }]
-          };
-
-          const result = await apiFetch('/api/add', {
-            method: 'POST',
-            body: JSON.stringify(payload)
-          });
-
-          if (result.status === 'ok') {
-            await refreshQueue();
-          } else {
-            alert(result.reason || 'Unable to add drink to the queue.');
-          }
-        });
-      });
-
-      document.getElementById('custom-form').addEventListener('submit', async (event) => {
-        event.preventDefault();
-        const name = document.getElementById('drink-name').value.trim() || 'Custom Drink';
-        const oz = Number(document.getElementById('drink-oz').value);
-
-        if (!Number.isFinite(oz) || oz <= 0 || oz > MAX_OUNCES) {
-          alert('Custom drink must be between 0.5 and 8.0 oz.');
-          return;
-        }
-
-        const result = await apiFetch('/api/add', {
-          method: 'POST',
-          body: JSON.stringify({
-            name,
-            items: [{ name, oz }]
-          })
-        });
-
-        if (result.status === 'ok') {
-          document.getElementById('custom-form').reset();
-          document.getElementById('drink-oz').value = '4';
-          await refreshQueue();
-        } else {
-          alert(result.reason || 'Unable to add the custom drink.');
-        }
-      });
-
-      document.addEventListener('click', async (event) => {
-        const button = event.target.closest('.queue-btn');
-        if (!button) return;
-
-        const result = await apiFetch('/api/dispense', {
-          method: 'POST',
-          body: JSON.stringify({ id: button.dataset.id })
-        });
-
-        if (result.status === 'ok') {
-          await refreshQueue();
-        } else {
-          alert(result.reason || 'This drink cannot be dispensed right now.');
-        }
-      });
-
-      refreshQueue();
-    </script>
-  </body>
-</html>
-)HTML";
-
-  return page;
-}
-
 bool queueHasItemWithId(const String &targetId) {
   for (const auto &item : queueItems) {
     if (item.id == targetId) {
@@ -324,6 +88,22 @@ QueueItem *findQueueItem(const String &targetId) {
 
 void handleRoot() {
   server.send(200, "text/html", buildLandingPage());
+}
+
+void handleNotFound() {
+  String requestPath = server.uri();
+
+  if (requestPath.startsWith("/api/")) {
+    server.send(404, "application/json", "{\"status\":\"error\",\"reason\":\"not_found\"}");
+    return;
+  }
+
+  if (server.method() == HTTP_GET) {
+    server.sendHeader("Cache-Control", "no-store");
+    server.send(200, "text/html", buildLandingPage());
+  } else {
+    server.send(404, "text/plain", "Not Found");
+  }
 }
 
 void handleStatus() {
@@ -449,18 +229,30 @@ void setup() {
     return;
   }
 
+  IPAddress apIP = WiFi.softAPIP();
   Serial.printf("[ESP32] AP SSID: %s\n", AP_SSID);
-  Serial.printf("[ESP32] IP: %s\n", WiFi.softAPIP().toString().c_str());
+  Serial.printf("[ESP32] IP: %s\n", apIP.toString().c_str());
+
+  dnsServer.start(DNS_PORT, "*", apIP);
+
+  if (MDNS.begin("margarita")) {
+    MDNS.addService("http", "tcp", 80);
+    Serial.println("[ESP32] mDNS available at http://margarita.local");
+  }
 
   server.on("/", HTTP_GET, handleRoot);
   server.on("/api/status", HTTP_GET, handleStatus);
   server.on("/api/add", HTTP_POST, handleAddDrink);
   server.on("/api/dispense", HTTP_POST, handleDispense);
+  server.onNotFound(handleNotFound);
 
   server.begin();
   Serial.println("[ESP32] Web server started on port 80");
+  Serial.println("[ESP32] Captive portal enabled; open http://margarita.com");
 }
 
 void loop() {
+  dnsServer.processNextRequest();
   server.handleClient();
 }
+
